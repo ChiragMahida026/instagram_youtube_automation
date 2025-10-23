@@ -1,0 +1,7 @@
+instaloader>=4.14
+google-api-python-client>=2.100.0
+oauth2client>=4.1.3
+pytest>=7.2
+coverage>=7.0
+openai>=1.2.0
+requests>=2.31.0

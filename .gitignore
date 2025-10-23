@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+venv/
+.env
+.envrc
+youtube_token.pickle
+downloads/
+__pycache__/
+htmlcov/
+*.log
