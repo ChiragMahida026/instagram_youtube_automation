@@ -18,6 +18,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import List, Iterable
+import os
 
 
 @dataclass
@@ -140,13 +141,29 @@ def download_posts(
     cmd: List[str] = ["instaloader"]
     if not download_all:
         cmd.append("--fast-update")  # incremental updates
-    # Save caption in .txt files (default) and avoid JSON/xz for simplicity
+    # Save caption in .txt files (default) and avoid JSON/xz for simplicity.
+    # If grouping into subdirectories is requested, tell Instaloader to create
+    # a per-post directory using the date-based pattern so files are written
+    # directly into their post folder (faster and less error-prone than
+    # moving files afterwards).
+    # Keep dirname pattern stable (profile directory). Use filename pattern to
+    # create a per-post subdirectory when requested by embedding a path sep in
+    # the filename pattern. This avoids passing unknown format keys to
+    # Instaloader's dirname pattern (which triggers .format() without
+    # parameters and caused KeyError for {date_utc}).
+    dirname_pattern = str(target_dir)
+    if group_into_subdirs:
+        # filename pattern will be something like "{date_utc}_UTC{sep}{date_utc}_UTC"
+        filename_pattern = "{date_utc}_UTC" + os.path.sep + "{date_utc}_UTC"
+    else:
+        filename_pattern = "{date_utc}_UTC"
+
     cmd.extend(
         [
             "--dirname-pattern",
-            str(target_dir),
+            dirname_pattern,
             "--filename-pattern",
-            "{date_utc}_UTC",
+            filename_pattern,
             "--post-metadata-txt",
             "{caption}",
             "--no-compress-json",

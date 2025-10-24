@@ -58,3 +58,44 @@ def test_download_posts_invokes_instaloader(monkeypatch, tmp_path):
     # ensure posts were collected
     assert len(posts) == 1
     assert posts[0].caption == "Caption"
+
+
+def test_download_posts_filename_pattern_for_subdirs(monkeypatch, tmp_path):
+    """When grouping into subdirs, the CLI should include a filename pattern
+    that contains a path separator so Instaloader writes into per-post folders."""
+    calls = []
+
+    def fake_run(cmd, check=True):
+        calls.append(cmd)
+        # simulate instaloader output: create profile directory and files
+        profile_dir = tmp_path / "downloads" / "user"
+        # Instaloader will create a subdir for the post when filename pattern
+        # contains a path sep, simulate that
+        post_dir = profile_dir / "2025-01-01_00-00-00_UTC"
+        post_dir.mkdir(parents=True, exist_ok=True)
+        cap = post_dir / "2025-01-01_00-00-00_UTC.txt"
+        cap.write_text("Caption", encoding="utf-8")
+        (post_dir / "2025-01-01_00-00-00_UTC.mp4").write_bytes(b"video")
+        return subprocess.CompletedProcess(cmd, 0)
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    posts = download_posts(
+        "user",
+        download_all=True,
+        output_dir=tmp_path / "downloads",
+        extra_args=[],
+        group_into_subdirs=True,
+    )
+    assert calls, "instaloader CLI was not invoked"
+    cmd = calls[0]
+    # find filename-pattern value
+    assert "--filename-pattern" in cmd
+    idx = cmd.index("--filename-pattern")
+    filename_pattern = cmd[idx + 1]
+    # should include a path separator
+    import os as _os
+
+    assert _os.path.sep in filename_pattern
+    # ensure posts were collected
+    assert len(posts) == 1
+    assert posts[0].caption == "Caption"
