@@ -153,8 +153,17 @@ def download_posts(
         cmd.extend(extra_args)
     cmd.append(profile)
 
-    # Execute the command
-    subprocess.run(cmd, check=True)
+    # Execute the command but don't raise on non-zero exit; still collect any
+    # files downloaded before the error (e.g., rate limiting or auth issues).
+    try:
+        result = subprocess.run(cmd, check=False)
+        if result.returncode != 0:
+            print(
+                "Instaloader exited with non-zero status",
+                result.returncode,
+                "- proceeding to collect any downloaded posts.",
+            )
+    except Exception as e:
+        print(f"Failed to run instaloader: {e}")
     # Collect posts from output directory
     return _collect_posts(target_dir)
-

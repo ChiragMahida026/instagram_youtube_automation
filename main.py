@@ -44,6 +44,7 @@ def process_profile(
     service_params: dict,
     watermark_image: Path | None = None,
     watermark_opts: dict | None = None,
+    instaloader_args: list[str] | None = None,
 ) -> None:
     """Download, process and optionally upload posts for a single profile.
 
@@ -64,7 +65,19 @@ def process_profile(
         include "client_secrets_file", "token_file", "category_id" and
         "privacy_status" if needed.
     """
-    posts = downloader.download_posts(username, download_all=download_all, output_dir=output_dir)
+    if instaloader_args is None:
+        posts = downloader.download_posts(
+            username,
+            download_all=download_all,
+            output_dir=output_dir,
+        )
+    else:
+        posts = downloader.download_posts(
+            username,
+            download_all=download_all,
+            output_dir=output_dir,
+            extra_args=instaloader_args,
+        )
     profile_dir = Path(output_dir) / username
     for post in posts:
         # metadata file path
@@ -230,6 +243,14 @@ def parse_args() -> argparse.Namespace:
             "Requires --watermark-image."
         ),
     )
+    parser.add_argument(
+        "--instaloader-args",
+        default=None,
+        help=(
+            "Additional arguments to pass to instaloader CLI, e.g. \"--login USER --sessionfile path\". "
+            "Useful to authenticate and avoid rate limits."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -253,6 +274,9 @@ def main() -> None:
             "opacity": args.watermark_opacity,
             "scale": args.watermark_scale,
         }
+    # Parse optional instaloader extra args
+    import shlex
+    instaloader_args = shlex.split(args.instaloader_args) if args.instaloader_args else None
     for username in usernames:
         process_profile(
             username=username,
@@ -263,6 +287,7 @@ def main() -> None:
             service_params=service_params,
             watermark_image=watermark_image,
             watermark_opts=watermark_opts,
+            instaloader_args=instaloader_args,
         )
 
 
