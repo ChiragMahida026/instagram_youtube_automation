@@ -1,22 +1,20 @@
-"""Command‑line entry point for the Instagram‑YouTube automation pipeline.
+"""Command-line entry point for the Instagram-YouTube automation pipeline.
 
 This script ties together downloading posts, generating YouTube metadata and
-optionally uploading videos.  It is designed for repeated execution: if
-`--download-all` is not specified it uses Instaloader’s `--fast‑update` to
-avoid fetching previously downloaded posts【503652632033799†L146-L153】.  Metadata is stored
-alongside each post in a `.json` file so the script can skip videos that
-have already been uploaded.
+optionally uploading videos. It is designed for repeated execution: if
+"--download-all" is not specified it uses Instaloader's "--fast-update" to
+avoid fetching previously downloaded posts. Metadata is stored alongside each
+post in a ".json" file so the script can skip videos that have already been
+uploaded.
 
 Usage example:
 
-```sh
-python main.py \
-    --usernames nasa,spacex \
-    --output-dir ./archive \
-    --use-chatgpt \
-    --upload-videos \
-    --client-secrets client_secret.json
-```
+    python main.py \
+        --usernames nasa,spacex \
+        --output-dir ./archive \
+        --use-chatgpt \
+        --upload-videos \
+        --client-secrets client_secret.json
 """
 
 from __future__ import annotations
@@ -27,8 +25,8 @@ import re
 from pathlib import Path
 from typing import List
 
-from instauto.downloader import download_posts, PostInfo
-from instauto.summarizer import generate_title_description
+import instauto.downloader as downloader
+import instauto.summarizer as summarizer
 from instauto.youtube_uploader import upload_video, get_authenticated_service
 
 
@@ -44,6 +42,8 @@ def process_profile(
     upload_videos: bool,
     use_chatgpt: bool,
     service_params: dict,
+    watermark_image: Path | None = None,
+    watermark_opts: dict | None = None,
 ) -> None:
     """Download, process and optionally upload posts for a single profile.
 
@@ -60,11 +60,11 @@ def process_profile(
     use_chatgpt: bool
         Whether to call the OpenAI API to summarise captions.
     service_params: dict
-        Keyword arguments forwarded to the YouTube upload functions.  Should
-        include `client_secrets_file`, `token_file`, `category_id` and
-        `privacy_status` if needed.
+        Keyword arguments forwarded to the YouTube upload functions. Should
+        include "client_secrets_file", "token_file", "category_id" and
+        "privacy_status" if needed.
     """
-    posts = download_posts(username, download_all=download_all, output_dir=output_dir)
+    posts = downloader.download_posts(username, download_all=download_all, output_dir=output_dir)
     profile_dir = Path(output_dir) / username
     for post in posts:
         # metadata file path
@@ -81,7 +81,9 @@ def process_profile(
                 # if file is corrupt, continue to regenerate
                 pass
         # Generate title and description
-        title, description = generate_title_description(post.caption, use_chatgpt=use_chatgpt)
+        title, description = summarizer.generate_title_description(
+            post.caption, use_chatgpt=use_chatgpt
+        )
         # Extract hashtags for tags list
         tags = extract_hashtags(post.caption)
         meta = {
@@ -101,11 +103,31 @@ def process_profile(
             )
             for media in post.media_files:
                 if media.suffix.lower() not in {".mp4", ".mov", ".avi", ".mkv"}:
-                    # skip non‑video files
+                    # skip non-video files
                     continue
+                video_path = media
+                # Apply watermark if requested
+                if watermark_image is not None:
+                    try:
+                        from instauto.watermark import apply_watermark
+
+                        wm_output = video_path.with_name(f"{video_path.stem}_wm{video_path.suffix}")
+                        opts = watermark_opts or {}
+                        apply_watermark(
+                            video_path=video_path,
+                            watermark_image=watermark_image,
+                            output_path=wm_output,
+                            position=opts.get("position", "bottom-right"),
+                            opacity=opts.get("opacity", 0.5),
+                            scale=opts.get("scale", 0.1),
+                        )
+                        video_path = wm_output
+                    except Exception as e:
+                        print(f"Failed to apply watermark to {media}: {e}")
+                        # continue with original file if watermark failed
                 try:
                     video_id = upload_video(
-                        video_path=media,
+                        video_path=video_path,
                         title=title,
                         description=description,
                         tags=tags,
@@ -119,6 +141,7 @@ def process_profile(
             # Mark as uploaded only if at least one video was successfully uploaded
             meta["uploaded"] = bool(meta["video_ids"])
         # Persist metadata
+        profile_dir.mkdir(parents=True, exist_ok=True)
         with meta_path.open("w", encoding="utf-8") as f:
             json.dump(meta, f, ensure_ascii=False, indent=2)
 
@@ -130,7 +153,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--usernames",
         required=True,
-        help="Comma‑separated list of Instagram usernames (without @)",
+        help="Comma-separated list of Instagram usernames (without @)",
     )
     parser.add_argument(
         "--download-all",
@@ -166,13 +189,46 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--category-id",
         default="22",
-        help="YouTube category ID for uploaded videos (default: 22 – People & Blogs)",
+        help="YouTube category ID for uploaded videos (default: 22 - People & Blogs)",
     )
     parser.add_argument(
         "--privacy-status",
         default="public",
         choices=["public", "unlisted", "private"],
         help="Privacy status for uploaded videos",
+    )
+    parser.add_argument(
+        "--watermark-image",
+        dest="watermark_image",
+        default=None,
+        help="Path to a PNG file to overlay as a watermark on videos before uploading",
+    )
+    parser.add_argument(
+        "--watermark-position",
+        dest="watermark_position",
+        default="bottom-right",
+        choices=["top-left", "top-right", "bottom-left", "bottom-right"],
+        help=(
+            "Position of the watermark on the video (default: bottom-right). "
+            "Requires --watermark-image."
+        ),
+    )
+    parser.add_argument(
+        "--watermark-opacity",
+        dest="watermark_opacity",
+        type=float,
+        default=0.5,
+        help="Opacity of the watermark (0.0 to 1.0, default: 0.5). Requires --watermark-image.",
+    )
+    parser.add_argument(
+        "--watermark-scale",
+        dest="watermark_scale",
+        type=float,
+        default=0.1,
+        help=(
+            "Relative scale of watermark width to video width (default: 0.1). "
+            "Requires --watermark-image."
+        ),
     )
     return parser.parse_args()
 
@@ -188,6 +244,15 @@ def main() -> None:
         "category_id": args.category_id,
         "privacy_status": args.privacy_status,
     }
+    # Build watermark options
+    watermark_image = Path(args.watermark_image) if args.watermark_image else None
+    watermark_opts = None
+    if watermark_image is not None:
+        watermark_opts = {
+            "position": args.watermark_position,
+            "opacity": args.watermark_opacity,
+            "scale": args.watermark_scale,
+        }
     for username in usernames:
         process_profile(
             username=username,
@@ -196,6 +261,8 @@ def main() -> None:
             upload_videos=args.upload_videos,
             use_chatgpt=args.use_chatgpt,
             service_params=service_params,
+            watermark_image=watermark_image,
+            watermark_opts=watermark_opts,
         )
 
 

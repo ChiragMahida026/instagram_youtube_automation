@@ -1,16 +1,19 @@
-"""Top‑level package for the Instagram‑YouTube automation system.
+"""Top-level package for the Instagram-YouTube automation system.
 
 This package exposes a minimal API for downloading Instagram posts, generating
-YouTube metadata and uploading videos.  See individual modules for details.
+YouTube metadata and uploading videos. See individual modules for details.
 """
 
 from .downloader import download_posts, PostInfo
 from .summarizer import generate_title_description
 from .youtube_uploader import upload_video
+from .watermark import apply_watermark
 
 __all__ = [
     "download_posts",
     "PostInfo",
     "generate_title_description",
     "upload_video",
+    "apply_watermark",
 ]
+

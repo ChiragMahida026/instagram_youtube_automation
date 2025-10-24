@@ -1,13 +1,13 @@
 """YouTube uploader using the Data API v3.
 
 This module encapsulates the boilerplate needed to authenticate with Google and
-upload videos.  It uses OAuth2 via the `google_auth_oauthlib` package and
+upload videos. It uses OAuth2 via the ``google_auth_oauthlib`` package and
 stores credentials in a token file so you only need to authorise once.
 
-According to Google’s documentation, each project has a default allocation of
-**10 000 units per day** and each video upload (`videos.insert`) costs **1 600
-units**【456953751346438†L129-L135】【652280474570090†L121-L133】.  You only pay beyond this quota.  See
-https://developers.google.com/youtube/v3 for details.
+According to Google's documentation, each project has a default allocation of
+10,000 units per day and each video upload (``videos.insert``) costs 1,600
+units. You only pay beyond this quota. See https://developers.google.com/youtube/v3
+for details.
 """
 
 from __future__ import annotations
@@ -37,11 +37,11 @@ def get_authenticated_service(
     Parameters
     ----------
     client_secrets_file: str or Path
-        Path to the JSON file downloaded from the Google Cloud Console.  This
+        Path to the JSON file downloaded from the Google Cloud Console. This
         file defines your OAuth client ID and secret.
     token_file: str or Path, optional
-        Path where the access/refresh tokens will be cached.  Defaults to
-        `youtube_token.pickle` in the current working directory.
+        Path where the access/refresh tokens will be cached. Defaults to
+        ``youtube_token.pickle`` in the current working directory.
 
     Returns
     -------
@@ -82,9 +82,9 @@ def upload_video(
 ) -> str:
     """Upload a single video to YouTube.
 
-    Either provide an existing authenticated `service` object or set
-    `client_secrets_file` and optionally `token_file` to construct one on the
-    fly.  On success the function returns the ID of the uploaded video.
+    Either provide an existing authenticated ``service`` object or set
+    ``client_secrets_file`` and optionally ``token_file`` to construct one on
+    the fly. On success the function returns the ID of the uploaded video.
 
     Parameters
     ----------
@@ -93,21 +93,21 @@ def upload_video(
     title: str
         Title of the video on YouTube.
     description: str
-        Full description text.  Should include hashtags and credits as desired.
+        Full description text. Should include hashtags and credits as desired.
     tags: list of str, optional
-        Tags/keywords for the video.  Can be None.
+        Tags/keywords for the video. Can be None.
     category_id: str, optional
-        The numeric category ID as defined by YouTube.  Default is "22"
-        (People & Blogs).  See YouTube documentation for a full list.
+        The numeric category ID as defined by YouTube. Default is "22"
+        (People & Blogs). See YouTube documentation for a full list.
     privacy_status: str, optional
-        One of "public", "private" or "unlisted".  Default is "public".
+        One of "public", "private" or "unlisted". Default is "public".
     client_secrets_file: str or Path, optional
-        Path to OAuth client secrets.  Required if `service` is None.
+        Path to OAuth client secrets. Required if ``service`` is None.
     token_file: str or Path, optional
-        Where to cache credentials.  Defaults to `youtube_token.pickle`.
+        Where to cache credentials. Defaults to ``youtube_token.pickle``.
     service: googleapiclient.discovery.Resource, optional
-        An existing YouTube API client.  If supplied the function will not
-        re‑authenticate.
+        An existing YouTube API client. If supplied the function will not
+        re-authenticate.
 
     Returns
     -------
@@ -119,7 +119,7 @@ def upload_video(
     googleapiclient.errors.HttpError
         If the API request fails.
     RuntimeError
-        If neither `service` nor `client_secrets_file` is provided.
+        If neither ``service`` nor ``client_secrets_file`` is provided.
     """
     # Build or use provided service
     if service is None:
@@ -161,3 +161,4 @@ def upload_video(
     except HttpError as e:
         print(f"An HTTP error {e.resp.status} occurred:\n{e.content}")
         raise
+
