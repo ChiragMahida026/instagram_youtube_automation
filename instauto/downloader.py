@@ -67,13 +67,15 @@ def _collect_posts(target_dir: Path) -> List[PostInfo]:
     if not target_dir.exists():
         return posts
     # caption files have .txt extension unless --no-captions was used
-    for caption_file in sorted(target_dir.glob("*.txt")):
+    # Search recursively so we can support per-post subdirectories.
+    for caption_file in sorted(target_dir.rglob("*.txt")):
         base_name = caption_file.stem
         caption = caption_file.read_text(encoding="utf-8", errors="ignore")
-        # gather all files starting with base_name excluding .txt and JSON/xz/zip
+        # gather all files starting with base_name in the same directory as caption
+        media_dir = caption_file.parent
         media_files = [
             f
-            for f in target_dir.glob(f"{base_name}*")
+            for f in media_dir.glob(f"{base_name}*")
             if f.suffix.lower() not in {".txt", ".json", ".xz", ".zip"}
         ]
         posts.append(
@@ -94,6 +96,7 @@ def download_posts(
     download_all: bool = False,
     output_dir: str | Path = "downloads",
     extra_args: Iterable[str] | None = None,
+    group_into_subdirs: bool = False,
 ) -> List[PostInfo]:
     """Download Instagram posts for a profile.
 
@@ -166,4 +169,39 @@ def download_posts(
     except Exception as e:
         print(f"Failed to run instaloader: {e}")
     # Collect posts from output directory
-    return _collect_posts(target_dir)
+    posts = _collect_posts(target_dir)
+    # Optionally group each post into its own subdirectory
+    if group_into_subdirs and posts:
+        moved_posts: List[PostInfo] = []
+        for post in posts:
+            post_dir = target_dir / post.base_name
+            post_dir.mkdir(parents=True, exist_ok=True)
+            # Move media files that are not already inside post_dir
+            new_media: List[Path] = []
+            for f in post.media_files:
+                dest = post_dir / f.name
+                if f.resolve().parent != post_dir.resolve():
+                    try:
+                        f.replace(dest)
+                    except Exception:
+                        # If move fails (e.g., same file), keep as is
+                        dest = f
+                new_media.append(dest)
+            # Move caption file if present at root
+            cap_root = target_dir / f"{post.base_name}.txt"
+            cap_dest = post_dir / f"{post.base_name}.txt"
+            if cap_root.exists() and not cap_dest.exists():
+                try:
+                    cap_root.replace(cap_dest)
+                except Exception:
+                    pass
+            moved_posts.append(
+                PostInfo(
+                    base_name=post.base_name,
+                    media_files=sorted(new_media),
+                    caption=post.caption,
+                    timestamp=post.timestamp,
+                )
+            )
+        posts = moved_posts
+    return posts

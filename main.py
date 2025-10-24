@@ -45,6 +45,7 @@ def process_profile(
     watermark_image: Path | None = None,
     watermark_opts: dict | None = None,
     instaloader_args: list[str] | None = None,
+    per_post_subdirs: bool = False,
 ) -> None:
     """Download, process and optionally upload posts for a single profile.
 
@@ -65,11 +66,25 @@ def process_profile(
         include "client_secrets_file", "token_file", "category_id" and
         "privacy_status" if needed.
     """
-    if instaloader_args is None:
+    if instaloader_args is None and not per_post_subdirs:
         posts = downloader.download_posts(
             username,
             download_all=download_all,
             output_dir=output_dir,
+        )
+    elif instaloader_args is None and per_post_subdirs:
+        posts = downloader.download_posts(
+            username,
+            download_all=download_all,
+            output_dir=output_dir,
+            group_into_subdirs=True,
+        )
+    elif instaloader_args is not None and not per_post_subdirs:
+        posts = downloader.download_posts(
+            username,
+            download_all=download_all,
+            output_dir=output_dir,
+            extra_args=instaloader_args,
         )
     else:
         posts = downloader.download_posts(
@@ -77,11 +92,15 @@ def process_profile(
             download_all=download_all,
             output_dir=output_dir,
             extra_args=instaloader_args,
+            group_into_subdirs=True,
         )
     profile_dir = Path(output_dir) / username
     for post in posts:
         # metadata file path
-        meta_path = profile_dir / f"{post.base_name}_meta.json"
+        if per_post_subdirs and (profile_dir / post.base_name).exists():
+            meta_path = (profile_dir / post.base_name) / "meta.json"
+        else:
+            meta_path = profile_dir / f"{post.base_name}_meta.json"
         # Skip processing if metadata exists and indicates uploaded
         if meta_path.exists():
             try:
@@ -251,6 +270,14 @@ def parse_args() -> argparse.Namespace:
             "Useful to authenticate and avoid rate limits."
         ),
     )
+    parser.add_argument(
+        "--per-post-subdirs",
+        action="store_true",
+        help=(
+            "Store each post inside a subdirectory named after its timestamp prefix. "
+            "Metadata will be written as 'meta.json' inside each subdirectory."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -288,6 +315,7 @@ def main() -> None:
             watermark_image=watermark_image,
             watermark_opts=watermark_opts,
             instaloader_args=instaloader_args,
+            per_post_subdirs=args.per_post_subdirs,
         )
 
 
